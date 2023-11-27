@@ -17,78 +17,105 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, neovim, bundlers, ... }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        pkgs = nixpkgs.legacyPackages.${system};
-        zsh' = pkgs.callPackage ./zsh/default.nix { };
-
-        topLevelPackages = pkgs:
+    flake-utils.lib.eachSystem [
+      "x86_64-linux"
+      "aarch64-linux"
+      "aarch64-darwin"
+    ]
+      (system:
         let
-          neovim' = neovim.mkNeovim.${system} {
-            inherit pkgs;
-          };
+          pkgs = nixpkgs.legacyPackages.${system};
           zsh' = pkgs.callPackage ./zsh/default.nix { };
-          git' = pkgs.callPackage ./git.nix { };
-        in with pkgs; [
-          neovim'
-          zsh'
-          git'
-          helix
 
-          # Rust evangelism strike force
-          xh bat duf exa fd ripgrep
+          topLevelPackages = pkgs:
+            let
+              neovim' = neovim.mkNeovim.${system} {
+                inherit pkgs;
+              };
+              zsh' = pkgs.callPackage ./zsh/default.nix { };
+              git' = pkgs.callPackage ./git.nix { };
+            in
+            with pkgs; [
+              neovim'
+              zsh'
+              helix
 
-          # Archive management
-          atool unar unzip bzip2
+              # Rust evangelism strike force
+              xh
+              bat
+              duf
+              fd
+              ripgrep
 
-          # System
-          inetutils usbutils lshw htop psmisc
+              # Archive management
+              atool
+              unar
+              unzip
+              bzip2
 
-          # Git
-          git github-cli
+              # System
+              # inetutils usbutils lshw htop psmisc
 
-          # Data wrangling
-          as-tree jq dsq difftastic
+              # Git
+              git'
+              github-cli
 
-          # Multiplexing
-          zellij tmate tmux
+              # Data wrangling
+              as-tree
+              jq
+              dsq
+              difftastic
 
-          # A little bit of everything
-          busybox binutils coreutils file age gping
-          pass patchelf picocom pv rlwrap tldr direnv
-          progress
-        ];
-      in
-      {
-        homeManagerModules.default = { config, pkgs, ... }: { 
-          home.packages = topLevelPackages pkgs;
-        };
+              # Multiplexing
+              zellij
+              tmate
+              tmux
 
-        nixosModules.default = { config, pkgs, ... }: {
-          environment.systemPackages = topLevelPackages pkgs;
-        };
+              # A little bit of everything
+              # busybox binutils coreutils
+              file
+              age
+              gping
+              pass
+              patchelf
+              picocom
+              pv
+              rlwrap
+              tldr
+              direnv
+              progress
+            ];
+        in
+        {
+          homeManagerModules.default = { config, pkgs, ... }: {
+            home.packages = topLevelPackages pkgs;
+          };
 
-        packages.default = pkgs.symlinkJoin {
-          name = "shenv";
+          nixosModules.default = { config, pkgs, ... }: {
+            environment.systemPackages = topLevelPackages pkgs;
+          };
 
-          paths = topLevelPackages pkgs;
+          packages.default = pkgs.symlinkJoin {
+            name = "shenv";
 
-          nativeBuildInputs = [ pkgs.makeWrapper ];
+            paths = topLevelPackages pkgs;
 
-          postBuild = ''
-            rm $out/bin/zsh
+            nativeBuildInputs = [ pkgs.makeWrapper ];
 
-            makeWrapper "${zsh'}/bin/zsh" "$out/bin/zsh" \
-             --suffix PATH : "$out/bin/"
-          '';
-        };
+            postBuild = ''
+              rm $out/bin/zsh
 
-        bundlers.default = bundlers.bundlers.${system}.toArx;
+              makeWrapper "${zsh'}/bin/zsh" "$out/bin/zsh" \
+               --suffix PATH : "$out/bin/"
+            '';
+          };
 
-        apps.default = {
-          type = "app";
-          program = "${self.packages.${system}.default}/bin/zsh";
-        };
-      }
-    );
+          bundlers.default = bundlers.bundlers.${system}.toArx;
+
+          apps.default = {
+            type = "app";
+            program = "${self.packages.${system}.default}/bin/zsh";
+          };
+        }
+      );
 }
